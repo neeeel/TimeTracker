@@ -195,6 +195,8 @@ confirmTime = None
 deferTime = None
 lastMessageTime = datetime.datetime.now()
 
+print("PID is ", os.getpid())
+
 win =window.mainWindow(userDetails,initialState)
 win.setCallbackFunction("confirm",confirm_task)
 win.setCallbackFunction("start",start_task)

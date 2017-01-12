@@ -6,21 +6,25 @@ import win32api, win32con, win32gui
 from win32gui import *
 import win32con
 import time
+from tkinter import messagebox
+import datetime
 
 
 class Taskbar:
     def __init__(self):
         self.visible = 0
         self.isAlive = False
-        self.mainWindowVisible = True
+        self.mainWindowVisible = False
         message_map = {
+
             win32con.WM_DESTROY: self.onDestroy,
-            win32con.WM_USER + 20: self.onTaskbarNotify,
+            #win32con.WM_ENDSESSION:self.on_shutdown,
+            #win32con.WM_QUERYENDSESSION:self.on_endsession,
         }
         # Register the Window class.
         wc = win32gui.WNDCLASS()
         self.hinst = wc.hInstance = win32api.GetModuleHandle(None)
-        wc.lpszClassName = "PythonTaskbarDemo"
+        wc.lpszClassName = "PythoWindowo"
         wc.style = win32con.CS_VREDRAW | win32con.CS_HREDRAW;
         wc.hCursor = win32gui.LoadCursor(0, win32con.IDC_ARROW)
         wc.hbrBackground = win32con.COLOR_GRAYTEXT
@@ -76,12 +80,13 @@ class Taskbar:
             win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE, nid)
         self.visible = 0
 
+
+
     def onDestroy(self, hwnd, msg, wparam, lparam):
         self.hide()
         print("destroying")
         win32gui.PostQuitMessage(0)  # Terminate the app.
-        #DestroyWindow(self.hwnd)
-        #self.classAtom = UnregisterClass(self.classAtom, self.hinst)
+
 
     def onTaskbarNotify(self, hwnd, msg, wparam, lparam):
         if lparam!=512:
@@ -102,6 +107,9 @@ class Taskbar:
             self.onRightClick()
         return 1
 
+    def on_endsession(self):
+        return True
+
     def onClick(self):
         """Override in subclassess"""
         pass
@@ -114,10 +122,22 @@ class Taskbar:
         """Override in subclasses"""
         pass
 
+class WindowForMessages(Taskbar):
+
+    def on_shutdown(self):
+        messagebox.showinfo(message="ertoiejreorijy")
+        while True:
+            pass
+
+    def startMonitoringForMessages(self):
+        win32gui.PumpMessages()
+
+
 
 class DemoTaskbar(Taskbar):
     def __init__(self):
         Taskbar.__init__(self)
+
         try:
             icon_flags = win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE
             hicon = win32gui.LoadImage(self.hinst, "stopwatch.ico",win32con.IMAGE_ICON, 0, 0, icon_flags)
@@ -142,6 +162,9 @@ class DemoTaskbar(Taskbar):
         self.show(msg)
         self.isAlive=True
 
+    def startMonitoringForMessages(self):
+        win32gui.PumpMessages()
+
     def displayBalloon(self,message):
         print("displaying balloon")
         if not self.isAlive:
@@ -160,6 +183,7 @@ class DemoTaskbar(Taskbar):
         #self.classAtom = UnregisterClass(self.classAtom,self.hinst)
 
     def destroy(self):
+        print("destroying in sub class")
         self.hide()
         try:
             DestroyWindow(self.hwnd)

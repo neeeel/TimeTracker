@@ -96,21 +96,15 @@ def start_work(userID,projectID,taskType):
     result = cur.execute("SELECT * FROM user WHERE ID=? ",(userID,)).fetchone()
     if result is None:
         return True
-    ###
-    ### is the user currently marked as active?
-    ###
-    if result[3] != 0:
-        currentJob = cur.execute("SELECT * FROM workedOn WHERE ID=? ",(result[3],)).fetchone()
-        if not currentJob is None:
-            if currentJob[2] == None:
-                try:
-                    d = int(datetime.datetime.now().timestamp())
-                    cur.execute("UPDATE user SET active= 0 WHERE ID = ? ", (userID,))
-                    cur.execute("UPDATE workedOn SET endDate= ? WHERE ID = ? ", (d, currentJob[0]))
-                    conn.commit()
-                except sqlite3.OperationalError as e:
-                    print("oh phoo", e)
-                    return False
+
+    try:
+        d = int(datetime.datetime.now().timestamp())
+        cur.execute("UPDATE user SET active= 0 WHERE ID = ? ", (userID,))
+        cur.execute("UPDATE workedOn SET endDate= ? WHERE user = ? ", (d, userID))
+        conn.commit()
+    except sqlite3.OperationalError as e:
+        print("oh phoo", e)
+        return False
     try:
         cur.execute("INSERT INTO workedOn (startDate,totalTimeWorked,user,project,taskType) VALUES (?,?,?,?,?)",(ts,0,userID,projectID,taskType))
         cur.execute("UPDATE user SET active= ? WHERE ID = ? ",(cur.lastrowid, userID))
@@ -218,7 +212,7 @@ def user_offline(ID):
     conn.execute('pragma foreign_keys=ON')
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE user SET online= 0 WHERE ID = ?", (ID,))
+        cur.execute("UPDATE user SET online= 0,active = 0 WHERE ID = ?", (ID,))
         conn.commit()
         cur.close()
         return True

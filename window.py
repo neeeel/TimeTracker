@@ -11,6 +11,8 @@ import datetime
 import csv
 import os
 import win32com.client
+import sys
+import threading
 
 class mainWindow(tkinter.Tk):
 
@@ -35,10 +37,16 @@ class mainWindow(tkinter.Tk):
         self.currentTask = None
         self.currentWindow = 1
         self.taskbar = taskbar.DemoTaskbar()
+        #self.messageWindow = taskbar.WindowForMessages()
+        #threading.Thread(target = self.messageWindow.startMonitoringForMessages).start()
 
         self.taskbar.hide()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.protocol("WM_ENDSESSION", self.on_shutdown)
+        self.protocol("WM_QUERYENDSESSION", self.on_shutdown)
         self.wm_title("TimeTracker")
+        windowsVersion = sys.getwindowsversion().major
+        print("windows version is",windowsVersion,type(windowsVersion))
 
         ###
         ### calculate the screen and window dimensions, adjust the size, and position the window in bottom right of screen
@@ -48,6 +56,7 @@ class mainWindow(tkinter.Tk):
         frame.pack(expand=1,fill=tkinter.BOTH)
         self.update()
         maximizedBorder =frame.winfo_rooty()
+        print("maximised border is",maximizedBorder)
         geom = parsegeometry(self.geometry())
         taskbarHeight = self.winfo_screenheight() - geom[1] - maximizedBorder
 
@@ -61,10 +70,11 @@ class mainWindow(tkinter.Tk):
         self.state("normal")
         self.geometry('%dx%d+%d+%d' % (self.width, self.height, self.x, self.y))
         self.update()
+        if windowsVersion == 10:
+            x_offset = self.winfo_rootx()- self.winfo_x()
+        else:
+            x_offset = 0
         normalBorder = frame.winfo_rooty() - self.y
-        self.geometry('%dx%d+%d+%d' % (self.width, self.height, self.x - (frame.winfo_rootx() - self.x), self.y-normalBorder))
-        self.update()
-        print("before adding widgets, geometry is",parsegeometry(self.geometry()))
 
         ###
         ### set up the widgets
@@ -87,20 +97,15 @@ class mainWindow(tkinter.Tk):
         l.bind("<Leave>", self.on_label_exit)
         l.bind("<Button-1>", self.spawn_report_window)
         l.grid(row=0, column=2, sticky="w")
-        sep = ttk.Separator(menuframe)
-        #sep.grid(row=1,column=0,columnspan=2,sticky="ew")
-        ttk.Style().configure(style="TSeparator",background="green")
         menuframe.pack(fill=tkinter.X,side=tkinter.TOP)
 
         taskSelectionFrame = tkinter.Frame(frame, bg="white")
-        tkinter.Label(master=taskSelectionFrame, text="Job No", font=f, bg="white", fg=self.tracsisBlue).pack(expand=tkinter.YES, fill=tkinter.BOTH,side=tkinter.LEFT,padx=4)
+        l = tkinter.Label(master=taskSelectionFrame, text="Job No", font=f, bg="white", fg=self.tracsisBlue)
+        l.pack(expand=tkinter.YES, fill=tkinter.BOTH,side=tkinter.LEFT,padx=4)
         e = tkinter.Entry(taskSelectionFrame,relief = tkinter.SUNKEN,borderwidth = 2,bg="ghost white", fg=self.tracsisBlue)
         e.pack(expand=tkinter.YES, fill=tkinter.BOTH,side=tkinter.LEFT,padx=4)
-        style = ttk.Style()
-        print("e height is", e.winfo_height())
 
         combostyle = ttk.Style()
-
         combostyle.theme_create('combostyle', parent='alt',
                                 settings={'TCombobox':
                                               {'configure':
@@ -122,9 +127,7 @@ class mainWindow(tkinter.Tk):
 
         mainframe = tkinter.Frame(frame, bg="white")
         f = tkinter.font.Font(family='Courier', size=8)
-        print("width is",self.winfo_width())
-        #tkinter.Label(master= mainframe,text = "Signed on as " + self.settings["firstName"] + " " + self.settings["surName"],font=f,bg="white",fg=self.tracsisBlue).pack() #grid(row=0,column=0,columnspan=4,sticky="ew")
-        tkinter.Label(master= mainframe, text="Inactive", font=f,bg="white",fg=self.tracsisBlue,height = 2).pack(fill = tkinter.X) #.grid(row=1, column=0,columnspan=4,sticky="ew")
+        tkinter.Label(master= mainframe, text="Inactive", font=f,bg="white",fg=self.tracsisBlue,height = 2).pack(fill = tkinter.X)
         l = tkinter.Label(master= mainframe, text="Start new task", font=f,bg="white",fg=self.tracsisBlue)
         l.bind("<Enter>",self.on_label_entry)
         l.bind("<Leave>", self.on_label_exit)
@@ -147,10 +150,13 @@ class mainWindow(tkinter.Tk):
         except Exception as e:
             print(e)
         self.update()
-        print("e height is", e.winfo_height())
-        print("box height is", box.winfo_height())
+        self.height = self.winfo_rooty()- self.winfo_y() + 200
+        self.y = self.winfo_screenheight() - self.height - taskbarHeight
+        self.geometry('%dx%d+%d+%d' % (self.winfo_reqwidth(), self.height,self.winfo_screenwidth() - self.winfo_reqwidth()-(1*x_offset),self.y - normalBorder))
+        self.update()
         self.taskbar.hide()
-        print("after adding widgets, geometry is", parsegeometry(self.geometry()))
+        #self.taskbar.startMonitoringForMessages()
+
         #self.overrideredirect(True)
         if self.initialState !="Normal":
             self.spawn_settings_window(None)
@@ -305,6 +311,8 @@ class mainWindow(tkinter.Tk):
             child.destroy()
         f = tkinter.font.Font(family='Courier', size=8)
         frame = tkinter.Frame(mainframe, bg="white")
+        frame.bind("<Unmap>", self.onUnMap)
+        frame.bind("<Map>", self.onMap)
         frame.pack()
         box = ttk.Combobox(frame, width=15)
         box["values"] = ("Last Week", "Last Fortnight", "Last Month")
@@ -322,19 +330,20 @@ class mainWindow(tkinter.Tk):
             box.insert(0,"All Users")
             box.current(0)
             box.grid(row=1,column=1,padx=5,pady=5)
-        tkinter.Button(frame, text="Generate", bg="white", command=self.report).grid(row=1 + self.settings["admin"], column=0, columnspan=2,padx=5,pady=5)
+        tkinter.Button(frame, text="Generate", bg="white", command=self.report).grid(row=1 + self.settings["admin"], column=0, columnspan=2,padx=5,pady=15)
         if self.settings["admin"] >=2:
             tkinter.Button(frame, text="View Current Activity", bg="white", command=self.view_current_activity).grid(row=2 + self.settings["admin"],column=0, columnspan=2, padx=5,pady=5)
 
     def view_current_activity(self):
         if self.activityWin is None:
             self.activityWin = tkinter.Toplevel(self)
-            self.activityWin.iconbitmap("stopwatch.ico")
+            try:
+                self.activityWin.iconbitmap("stopwatch.ico")
+            except Exception as e:
+                print("load of icon failed")
             self.activityWin.protocol("WM_DELETE_WINDOW", self.activity_window_closed)
         for child in self.activityWin.winfo_children():
             child.destroy()
-        mainframe = self.nametowidget(self.winfo_children()[0])
-        reportFrame = self.nametowidget(mainframe.winfo_children()[1])
         cols = ["Name","Project","Task Type","Start Time","Duration"]
         ttk.Style().configure("Treeview", background="white",foreground=self.tracsisBlue)
         tree = ttk.Treeview(master=self.activityWin, columns=cols, show="headings", height=8)
@@ -344,10 +353,8 @@ class mainWindow(tkinter.Tk):
             tree.heading(i,text = cols[i])
         tree.column(3, width=150, anchor=tkinter.CENTER)
         userList = myDB.get_user_list(self.settings["ID"],self.settings["admin"])
-        print(userList)
         activity = myDB.get_current_activity(userList)
         for act in activity:
-            print(act)
             tree.insert("","end",values=act)
         tkinter.Button(self.activityWin, text="Refresh", bg="white",fg=self.tracsisBlue, command=self.view_current_activity).grid(row=2,column=0, padx=5,pady=5)
 
@@ -400,17 +407,36 @@ class mainWindow(tkinter.Tk):
                 writer.writerows(result)
         except PermissionError as e:
             pass
-        folder = os.path.dirname(os.path.abspath(__file__))
-        xl = win32com.client.Dispatch("Excel.Application")
-        xl.Application.Visible = True
-        xl.Workbooks.Open(os.path.realpath(folder + "/report.csv"))
+        print("basic cwd is",os.getcwd())
+        folder = os.path.abspath(os.getcwd())
+        print("after abspath, folder is",folder)
+        #folder = os.path.abspath(folder)
+        #print("after abspath, folder is",folder)
+        excelFile = os.path.join(folder,"report.csv")
+        print("after join, folder i s",excelFile)
+        try:
+            xl = win32com.client.Dispatch("Excel.Application")
+            xl.Application.Visible = True
+            #print("looking for file ",os.path.realpath(folder + "/report.csv"))
+            xl.Workbooks.Open(os.path.realpath(excelFile))
+        except Exception as e:
+            messagebox.showinfo(message="There was a problem with excel, or excel isnt installed on your PC")
 
     def set_settings_dict(self,dict):
         self.settings = dict
 
     def on_closing(self):
+        print("in on closing, received shutdown meassage")
+        self.stop_task()
         self.taskbar.destroy()
         self.destroy()
+        myDB.user_offline(self.settings["ID"])
+        #messagebox.showinfo(message="caught closing down event")
+
+
+    def on_shutdown(self):
+        print("shutting down")
+
 
     def start_task(self,projectName,taskType):
         self.currentTask = projectName
@@ -418,7 +444,6 @@ class mainWindow(tkinter.Tk):
 
     def stop_task(self):
         self.stopFunction()
-        frame = self.nametowidget(self.winfo_children()[0])
         self.currentTask = None
 
     def confirm_task(self):
@@ -434,6 +459,8 @@ class mainWindow(tkinter.Tk):
             child.destroy()
         f = tkinter.font.Font(family='Courier', size=8)
         frame = tkinter.Frame(mainframe, bg="white")
+        frame.bind("<Unmap>", self.onUnMap)
+        frame.bind("<Map>", self.onMap)
         frame.pack()
 
         tkinter.Label(frame,text = "Forename",font = f,bg = "white").grid(row=0,column = 0,pady = (10,0))
@@ -468,7 +495,7 @@ class mainWindow(tkinter.Tk):
         tkinter.Button(frame,text = "Save",font = f,command=self.save_settings, bg="white", fg=self.tracsisBlue).grid(row=4,column=0,padx=10,pady=10,columnspan=2)
 
     def update_info(self,message):
-        #print("message is",message)
+        print("message is",message)
         if message !="Inactive":
             message = "Working on " + self.currentTask + " for " + message
         if self.currentWindow != 1:
@@ -497,7 +524,7 @@ class mainWindow(tkinter.Tk):
         self.windowStatus = "Hidden"
         frame = self.nametowidget(self.winfo_children()[0])
         mainframe = self.nametowidget(frame.winfo_children()[2])
-        label = self.nametowidget(mainframe.winfo_children()[1])
+        label = self.nametowidget(mainframe.winfo_children()[0])
         msg=label.cget("text")
         self.withdraw()
         print("withdrawn")
@@ -574,12 +601,11 @@ class mainWindow(tkinter.Tk):
 
     def open_database_file_location(self,event):
         dirName = os.path.dirname(self.settings["file"])
-
         if os.path.isdir(dirName):
             p = os.path.normpath(dirName)
             subprocess.Popen('explorer "{0}"'.format(p))
         else:
-            messagebox.showinfo(message="Project folder doesnt exist")
+            messagebox.showinfo(message="Database location doesnt exist")
 
     def ping(self):
         print("PING",self.windowStatus)

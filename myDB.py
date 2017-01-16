@@ -100,7 +100,7 @@ def start_work(userID,projectID,taskType):
     try:
         d = int(datetime.datetime.now().timestamp())
         cur.execute("UPDATE user SET active= 0 WHERE ID = ? ", (userID,))
-        cur.execute("UPDATE workedOn SET endDate= ? WHERE user = ? ", (d, userID))
+        cur.execute("UPDATE workedOn SET endDate= ? WHERE user = ? AND endDate is Null", (d, userID))
         conn.commit()
     except sqlite3.OperationalError as e:
         print("oh phoo", e)

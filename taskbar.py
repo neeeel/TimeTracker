@@ -18,6 +18,8 @@ class Taskbar:
         message_map = {
 
             win32con.WM_DESTROY: self.onDestroy,
+            win32con.WM_USER + 20: self.onTaskbarNotify,
+            #win32con.WM_ENDSESSION: self.on_shutdown,
             #win32con.WM_ENDSESSION:self.on_shutdown,
             #win32con.WM_QUERYENDSESSION:self.on_endsession,
         }

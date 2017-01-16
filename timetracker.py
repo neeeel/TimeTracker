@@ -5,25 +5,8 @@ import threading
 import myDB
 import os
 import sys
-from tkinter import messagebox
-from signal import signal, SIGTERM,SIGABRT
-from sys import exit
-import atexit
+import logging
 
-def set_exit_handler(func):
-    if os.name == "nt":
-        try:
-            import win32api
-            win32api.SetConsoleCtrlHandler(func, True)
-        except ImportError:
-            version = ".".join(map(str, sys.version_info[:2]))
-            raise Exception("pywin32 not installed for Python " + version)
-    else:
-        import signal
-        signal.signal(signal.SIGTERM, func)
-
-def graceful_exit(e):
-    print("caught exit signal",e)
 
 def load_settings():
     global userDetails
@@ -34,6 +17,7 @@ def load_settings():
     userDetails["admin"] = ""
     userDetails["defer"] = 0
     defer = 0
+    logging.log(logging.DEBUG,"loading settings")
     try:
         f = open("settings.txt", "r")
     except FileNotFoundError as e:
@@ -50,16 +34,19 @@ def load_settings():
         defer = int(f.readline().rstrip())
     except Exception as e:
         print("failed",e)
+        logging.log(logging.DEBUG,"failed to read file, error %s",str(e))
 
     myDB.set_file(file)
     if not myDB.check_Db_file():
         print("check of database file failed")
+        logging.log(logging.DEBUG, "check of database file failed")
         userDetails["file"] = "None"
         return "Failed Db"
     else:
         print("check of database file successful")
         userID,admin = myDB.get_user_ID(firstname,surname)
         if userID == "":
+            logging.log(logging.DEBUG, "failed to find user %s %s",firstname,surname)
             return "Failed User"
         if file == "":
             file = "None"
@@ -97,8 +84,10 @@ def start_task(projectName,taskType):
 
         flag = False
         while not flag:
+            logging.log(logging.DEBUG,"attempting to start task %s",projectName)
             flag = myDB.start_work(userDetails["ID"],projectID,taskType)
             firstPromptTime = None
+        logging.log(logging.DEBUG,"successfully started task")
 
 def confirm_task():
     print("confirming task")
@@ -115,14 +104,16 @@ def stop_task():
         flag = False
         win.update_info("Inactive")
         while not flag:
+            logging.log(logging.DEBUG, "attempting to stop current task")
             flag = myDB.stop_work(userDetails["ID"])
             firstPromptTime = None
+        logging.log(logging.DEBUG, "successfully stopped current task")
 
 def defer_messages():
     global taskStartTime, lastMessageTime, running, firstPromptTime, confirmTime, win, deferTime
     if userDetails["defer"] != 0:
         deferTime = datetime.datetime.now() + datetime.timedelta(minutes=userDetails["defer"])
-        print("setting defer time to",deferTime)
+        logging.log("setting defer time to",deferTime)
         if lastMessageTime is not None:
             lastMessageTime = lastMessageTime + datetime.timedelta(minutes=userDetails["defer"])
         if firstPromptTime is not None:
@@ -132,68 +123,79 @@ def defer_messages():
 
 def process():
     global taskStartTime,lastMessageTime,running,firstPromptTime,confirmTime,win, deferTime
+    closingTimeFlag = False
     while running:
-        if firstPromptTime is not None:
-            if deferTime is not None:
-                if datetime.datetime.now() > deferTime:
-                    deferTime = None
-            else:
-                ### we have prompted user to confirm task at least once
-                td = datetime.datetime.now() - firstPromptTime
-                if td.total_seconds() > 300:
-                    ### its been 5 minutes since we first prompted for confirm, so stop task
-                    td = datetime.datetime.now() - lastMessageTime
-                    if td.total_seconds() >= 50:
-                        win.display_balloon("No confirmation in last 5 minutes, stopping task")
-                        stop_task()
-                        firstPromptTime = None
-                        lastMessageTime = datetime.datetime.now()
-        #print("processing",taskStartTime)
-        if taskStartTime is None:
-            win.update_info("Inactive")
+        if datetime.datetime.now().hour >= 17 or (datetime.datetime.now().hour ==16 and datetime.datetime.now().minute >=54):
+            closingTimeFlag = True
+        if closingTimeFlag:
             if deferTime is not None:
                 if datetime.datetime.now() > deferTime:
                     deferTime = None
             else:
                 td = datetime.datetime.now() - lastMessageTime
                 if td.total_seconds() >= 60:
-                    ### one minute since last prompt
-                    print("displaying no task started message",datetime.datetime.now())
-                    win.display_balloon("No task started")
+                    win.display_balloon("dont forget to stop current task before shutting down your PC")
                     lastMessageTime = datetime.datetime.now()
         else:
-            td = datetime.datetime.now() - confirmTime
-            text = str(datetime.datetime.now() - taskStartTime).split(".")[0]
-            win.update_info(text)
-            if deferTime is not None:
-                if datetime.datetime.now() > deferTime:
-                    deferTime = None
-            else:
-                if td.total_seconds() >= 3600:
+            if firstPromptTime is not None:
+                if deferTime is not None:
+                    if datetime.datetime.now() > deferTime:
+                        deferTime = None
+                else:
+                    ### we have prompted user to confirm task at least once
+                    td = datetime.datetime.now() - firstPromptTime
+                    if td.total_seconds() > 300:
+                        ### its been 5 minutes since we first prompted for confirm, so stop task
+                        td = datetime.datetime.now() - lastMessageTime
+                        if td.total_seconds() >= 50:
+                            win.display_balloon("No confirmation in last 5 minutes, stopping task")
+                            stop_task()
+                            firstPromptTime = None
+                            lastMessageTime = datetime.datetime.now()
+            if taskStartTime is None:
+                win.update_info("Inactive")
+                if deferTime is not None:
+                    if datetime.datetime.now() > deferTime:
+                        deferTime = None
+                else:
                     td = datetime.datetime.now() - lastMessageTime
                     if td.total_seconds() >= 60:
-                        win.display_balloon("Please confirm current task")
+                        ### one minute since last prompt
+                        print("displaying no task started message",datetime.datetime.now())
+                        win.display_balloon("No task started")
                         lastMessageTime = datetime.datetime.now()
-                        if firstPromptTime is None:
-                            firstPromptTime = datetime.datetime.now()
+            else:
+                td = datetime.datetime.now() - confirmTime
+                text = str(datetime.datetime.now() - taskStartTime).split(".")[0]
+                win.update_info(text)
+                if deferTime is not None:
+                    if datetime.datetime.now() > deferTime:
+                        deferTime = None
+                else:
+                    if td.total_seconds() >= 3600:
+                        td = datetime.datetime.now() - lastMessageTime
+                        if td.total_seconds() >= 60:
+                            win.display_balloon("Please confirm current task")
+                            lastMessageTime = datetime.datetime.now()
+                            if firstPromptTime is None:
+                                firstPromptTime = datetime.datetime.now()
 
         time.sleep(5)
 
+
+logging.basicConfig(filename="logfile.txt",level = logging.DEBUG,format='%(asctime)s %(message)s' , datefmt='%m/%d/%Y %I:%M:%S')
 settings = []
 userDetails = {}
 initialState = load_settings()
 print(userDetails)
 running = True
-#atexit.register(graceful_exit,3)
-
-# Normal exit when killed
-#signal(SIGTERM, lambda signum, stack_frame: lambda:graceful_exit(1))
-#signal(SIGABRT, lambda:graceful_exit(0))
 taskStartTime = None
 firstPromptTime = None
 confirmTime = None
 deferTime = None
 lastMessageTime = datetime.datetime.now()
+
+
 
 print("PID is ", os.getpid())
 

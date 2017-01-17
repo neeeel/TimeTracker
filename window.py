@@ -12,7 +12,7 @@ import csv
 import os
 import win32com.client
 import sys
-import threading
+
 
 class mainWindow(tkinter.Tk):
 
@@ -264,7 +264,7 @@ class mainWindow(tkinter.Tk):
             text = "Start new task"
         else:
             text = "Start new task "
-            l = tkinter.Label(master=labelFrame, text="Continue with current job", font=f, bg="white", fg=self.tracsisBlue)
+            l = tkinter.Label(master=labelFrame, text="Continue with current Job", font=f, bg="white", fg=self.tracsisBlue)
             l.bind("<Enter>", self.on_label_entry)
             l.bind("<Leave>", self.on_label_exit)
             l.bind("<Button-1>", self.on_label_click)
@@ -445,6 +445,7 @@ class mainWindow(tkinter.Tk):
     def stop_task(self):
         self.stopFunction()
         self.currentTask = None
+        self.spawn_main_window(None)
 
     def confirm_task(self):
         self.confirmFunction()

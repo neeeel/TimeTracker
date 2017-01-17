@@ -1,10 +1,8 @@
-from tkinter import filedialog,messagebox
+from tkinter import messagebox
 import sqlite3
 import os
 import datetime
-import time
-import csv
-import pandas as pd
+
 
 def create_Db(fileName):
     ###

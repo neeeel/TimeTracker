@@ -4,7 +4,6 @@ import time
 import threading
 import myDB
 import os
-import sys
 import logging
 
 
@@ -149,7 +148,7 @@ def process():
                         td = datetime.datetime.now() - lastMessageTime
                         if td.total_seconds() >= 50:
                             win.display_balloon("No confirmation in last 5 minutes, stopping task")
-                            stop_task()
+                            win.stop_task()
                             firstPromptTime = None
                             lastMessageTime = datetime.datetime.now()
             if taskStartTime is None:

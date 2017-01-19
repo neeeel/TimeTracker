@@ -5,17 +5,26 @@ import threading
 import myDB
 import os
 import logging
-
+import subprocess
 
 def load_settings():
     global userDetails
+
+
+
+
+
+
     userDetails["firstName"] = ""
     userDetails["surName"] = ""
     userDetails["file"] = "None"
     userDetails["ID"] = ""
     userDetails["admin"] = ""
     userDetails["defer"] = 0
+    userDetails["previousPID"] = ""
     defer = 0
+
+
     logging.log(logging.DEBUG,"loading settings")
     try:
         f = open("settings.txt", "r")
@@ -94,6 +103,26 @@ def confirm_task():
     confirmTime = datetime.datetime.now()
     firstPromptTime = None
 
+def check_already_running(PID):
+    ###
+    ### check if a process called TimeTracker.exe is already running
+    ###
+    global initialState
+    cmd = 'WMIC PROCESS get Processid'
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+    for line in proc.stdout:
+        s = str(line)
+        s = s.strip()
+        s = s.strip("\n")
+        s = s.replace("\n", "")
+        s = s.strip("\t")
+        s = s.replace("\t", "")
+
+        if PID in s:
+            print("found")
+            return True
+    return False
+
 def stop_task():
     global taskStartTime,firstPromptTime, confirmTime, lastMessageTime
     lastMessageTime = datetime.datetime.now()
@@ -126,47 +155,44 @@ def process():
     while running:
         if datetime.datetime.now().hour >= 17 or (datetime.datetime.now().hour ==16 and datetime.datetime.now().minute >=54):
             closingTimeFlag = True
-        if closingTimeFlag:
+
+        if firstPromptTime is not None:
+            if deferTime is not None:
+                if datetime.datetime.now() > deferTime:
+                    deferTime = None
+            else:
+                ### we have prompted user to confirm task at least once
+                td = datetime.datetime.now() - firstPromptTime
+                if td.total_seconds() > 300:
+                    ### its been 5 minutes since we first prompted for confirm, so stop task
+                    td = datetime.datetime.now() - lastMessageTime
+                    if td.total_seconds() >= 50:
+                        win.display_balloon("No confirmation in last 5 minutes, stopping task")
+                        win.stop_task()
+                        firstPromptTime = None
+                        lastMessageTime = datetime.datetime.now()
+        if taskStartTime is None:
+            win.update_info("Inactive")
             if deferTime is not None:
                 if datetime.datetime.now() > deferTime:
                     deferTime = None
             else:
                 td = datetime.datetime.now() - lastMessageTime
                 if td.total_seconds() >= 60:
-                    win.display_balloon("dont forget to stop current task before shutting down your PC")
+                    ### one minute since last prompt
+                    print("displaying no task started message",datetime.datetime.now())
+                    win.display_balloon("No task started")
                     lastMessageTime = datetime.datetime.now()
         else:
-            if firstPromptTime is not None:
-                if deferTime is not None:
-                    if datetime.datetime.now() > deferTime:
-                        deferTime = None
-                else:
-                    ### we have prompted user to confirm task at least once
-                    td = datetime.datetime.now() - firstPromptTime
-                    if td.total_seconds() > 300:
-                        ### its been 5 minutes since we first prompted for confirm, so stop task
-                        td = datetime.datetime.now() - lastMessageTime
-                        if td.total_seconds() >= 50:
-                            win.display_balloon("No confirmation in last 5 minutes, stopping task")
-                            win.stop_task()
-                            firstPromptTime = None
-                            lastMessageTime = datetime.datetime.now()
-            if taskStartTime is None:
-                win.update_info("Inactive")
-                if deferTime is not None:
-                    if datetime.datetime.now() > deferTime:
-                        deferTime = None
-                else:
-                    td = datetime.datetime.now() - lastMessageTime
-                    if td.total_seconds() >= 60:
-                        ### one minute since last prompt
-                        print("displaying no task started message",datetime.datetime.now())
-                        win.display_balloon("No task started")
-                        lastMessageTime = datetime.datetime.now()
+            td = datetime.datetime.now() - confirmTime
+            text = str(datetime.datetime.now() - taskStartTime).split(".")[0]
+            win.update_info(text)
+            if closingTimeFlag:
+                td = datetime.datetime.now() - lastMessageTime
+                if td.total_seconds() >= 60:
+                    win.display_balloon("dont forget to stop current task before shutting down your PC")
+                    lastMessageTime = datetime.datetime.now()
             else:
-                td = datetime.datetime.now() - confirmTime
-                text = str(datetime.datetime.now() - taskStartTime).split(".")[0]
-                win.update_info(text)
                 if deferTime is not None:
                     if datetime.datetime.now() > deferTime:
                         deferTime = None
@@ -186,6 +212,7 @@ logging.basicConfig(filename="logfile.txt",level = logging.DEBUG,format='%(ascti
 settings = []
 userDetails = {}
 initialState = load_settings()
+
 print(userDetails)
 running = True
 taskStartTime = None

@@ -157,7 +157,36 @@ class mainWindow(tkinter.Tk):
         self.taskbar.hide()
         #self.taskbar.startMonitoringForMessages()
 
-        #self.overrideredirect(True)
+        ###
+        ### check that the program isnt already running
+        ###
+
+        previousPID = ""
+        try:
+            f = open("pID.txt", "r")
+        except FileNotFoundError as e:
+            f = open("pID.txt", "w")
+            f.close()
+            f = open("pID.txt", "r")
+        try:
+            previousPID = f.readline().strip()
+        except Exception as e:
+            print("no PID to read")
+        print("previous pid is", previousPID)
+        if previousPID != "":
+            if check_already_running(previousPID):
+                userDetails["previousPID"] = previousPID
+                result = messagebox.askquestion(message="App already running. Do you want to kill existing program and use this copy?")
+                print("ersult is",result)
+                if result == "yes":
+                    os.system("taskkill /PID " + previousPID)
+                else:
+                    exit()
+        f = open("pID.txt", "w")
+        f.write(str(os.getpid()) + "\n")
+        f.close()
+
+
         if self.initialState !="Normal":
             self.spawn_settings_window(None)
 
@@ -197,7 +226,7 @@ class mainWindow(tkinter.Tk):
             l.pack()
         if text == "Start new task ": ### note space at end, to distinguish between the two situations where we want to start a new task
             ### this is when we are currently logging a task, but want to start a new task
-            self.stop_task()
+            self.stopFunction()
             parent = self.nametowidget(event.widget.winfo_parent())
             mainFrame = self.nametowidget(self.winfo_children()[0])
             taskFrame = self.nametowidget(mainFrame.winfo_children()[1])
@@ -207,13 +236,14 @@ class mainWindow(tkinter.Tk):
             self.start_task(entry.get().strip(), box.get())
         if text == "Continue with current Job":
             self.confirmFunction()
+            self.confirm_task()
         if text == "Stop":
             self.stop_task()
-            parent = self.nametowidget(event.widget.winfo_parent())
-            l = self.nametowidget(parent.winfo_children()[2])
-            l.configure(text="Start new task")
-            self.nametowidget(parent.winfo_children()[1]).destroy()
-            event.widget.destroy()
+            #parent = self.nametowidget(event.widget.winfo_parent())
+            #l = self.nametowidget(parent.winfo_children()[2])
+            #l.configure(text="Start new task")
+            #self.nametowidget(parent.winfo_children()[1]).destroy()
+            #event.widget.destroy()
         if text == "Defer":
             self.deferFunction()
 
@@ -433,10 +463,16 @@ class mainWindow(tkinter.Tk):
         myDB.user_offline(self.settings["ID"])
         #messagebox.showinfo(message="caught closing down event")
 
+    def confirm_task(self):
+        print("confirmed task")
+        mainFrame = self.nametowidget(self.winfo_children()[0])
+        labelFrame = self.nametowidget(mainFrame.winfo_children()[2])
+        l =  self.nametowidget(labelFrame.winfo_children()[1])
+        l.configure(fg="green")
+        #self.after(1000,self.spawn_main_window)
 
     def on_shutdown(self):
         print("shutting down")
-
 
     def start_task(self,projectName,taskType):
         self.currentTask = projectName
@@ -446,9 +482,6 @@ class mainWindow(tkinter.Tk):
         self.stopFunction()
         self.currentTask = None
         self.spawn_main_window(None)
-
-    def confirm_task(self):
-        self.confirmFunction()
 
     def display_balloon(self,message):
         self.taskbar.displayBalloon(message)
@@ -515,25 +548,24 @@ class mainWindow(tkinter.Tk):
 
     def onMap(self,event):
         print("mapping")
-        self.windowStatus = "Visible"
-        self.wm_deiconify()
+        #self.windowStatus = "Visible"
+        #self.wm_deiconify()
 
     def onUnMap(self,event):
         if len(self.winfo_children()) > 2:
             if type(self.nametowidget(self.winfo_children()[2]))==tkinter.Toplevel:
                 self.nametowidget(self.winfo_children()[2]).destroy()
+        #self.spawn_main_window(None)
         self.windowStatus = "Hidden"
-        frame = self.nametowidget(self.winfo_children()[0])
-        mainframe = self.nametowidget(frame.winfo_children()[2])
-        label = self.nametowidget(mainframe.winfo_children()[0])
-        msg=label.cget("text")
         self.withdraw()
         print("withdrawn")
-        self.taskbar.activate(msg)
+        self.taskbar.activate("")
         win32gui.PumpMessages()
         print("unwithdrawing")
         self.deiconify()
+        print("deiconified")
         self.taskbar.hide()
+        print("hid taskbar")
 
     def load_settings(self):
         f = open("settings.txt", "r")
@@ -631,3 +663,23 @@ def parsegeometry(geometry):
     if not m:
         raise ValueError("failed to parse geometry string")
     return list(map(int, m.groups()))
+
+def check_already_running(PID):
+    ###
+    ### check if a process called TimeTracker.exe is already running
+    ###
+    global initialState
+    cmd = 'WMIC PROCESS get Processid'
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+    for line in proc.stdout:
+        s = str(line)
+        s = s.strip()
+        s = s.strip("\n")
+        s = s.replace("\n", "")
+        s = s.strip("\t")
+        s = s.replace("\t", "")
+
+        if PID in s:
+            print("found")
+            return True
+    return False

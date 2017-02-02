@@ -198,6 +198,7 @@ class mainWindow(tkinter.Tk):
 
     def on_label_click(self,event):
         text =event.widget.cget("text")
+        #event.widget.configure(fg="green")
         if text == "Start new task":
             print("clicked to start new task")
 
@@ -548,7 +549,7 @@ class mainWindow(tkinter.Tk):
 
     def onMap(self,event):
         print("mapping")
-        #self.windowStatus = "Visible"
+        self.windowStatus = "Visible"
         #self.wm_deiconify()
 
     def onUnMap(self,event):

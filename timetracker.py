@@ -99,9 +99,8 @@ def start_task(projectName,taskType):
 
 def confirm_task():
     print("confirming task")
-    global taskStartTime, confirmTime,firstPromptTime
-    confirmTime = datetime.datetime.now()
-    firstPromptTime = None
+    global taskStartTime, confirmTime,firstPromptTime, confirmedTask
+    confirmedTask = True
 
 def check_already_running(PID):
     ###
@@ -150,9 +149,20 @@ def defer_messages():
             confirmTime = confirmTime + datetime.timedelta(minutes=userDetails["defer"])
 
 def process():
-    global taskStartTime,lastMessageTime,running,firstPromptTime,confirmTime,win, deferTime
+    global taskStartTime,lastMessageTime,running,firstPromptTime,confirmTime,win, deferTime, confirmedTask
+
+
     closingTimeFlag = False
     while running:
+
+        print("confirmedtask is", confirmedTask)
+        if confirmedTask:
+            print("here")
+            confirmedTask = False
+            firstPromptTime = None
+            confirmTime = datetime.datetime.now()
+            logging.log(logging.DEBUG, "setting first prompt time to None (0)")
+            logging.log(logging.DEBUG,"successfully confirmed task at " + datetime.datetime.strftime(confirmTime, "%H:%M:%S"))
         if datetime.datetime.now().hour >= 17 or (datetime.datetime.now().hour ==16 and datetime.datetime.now().minute >=54):
             closingTimeFlag = True
 
@@ -170,6 +180,9 @@ def process():
                         win.display_balloon("No confirmation in last 5 minutes, stopping task")
                         win.stop_task()
                         firstPromptTime = None
+                        logging.log(logging.DEBUG,"setting first prompt time to None (1)")
+
+
                         lastMessageTime = datetime.datetime.now()
         if taskStartTime is None:
             win.update_info("Inactive")
@@ -204,6 +217,9 @@ def process():
                             lastMessageTime = datetime.datetime.now()
                             if firstPromptTime is None:
                                 firstPromptTime = datetime.datetime.now()
+                                logging.log(logging.DEBUG,"setting first prompt time to " + datetime.datetime.strftime(firstPromptTime,"%H:%M:%S"))
+
+
 
         time.sleep(5)
 
@@ -220,7 +236,7 @@ firstPromptTime = None
 confirmTime = None
 deferTime = None
 lastMessageTime = datetime.datetime.now()
-
+confirmedTask = False
 
 
 print("PID is ", os.getpid())

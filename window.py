@@ -129,6 +129,7 @@ class mainWindow(tkinter.Tk):
         f = tkinter.font.Font(family='Courier', size=8)
         tkinter.Label(master= mainframe, text="Inactive", font=f,bg="white",fg=self.tracsisBlue,height = 2).pack(fill = tkinter.X)
         l = tkinter.Label(master= mainframe, text="Start new task", font=f,bg="white",fg=self.tracsisBlue)
+        self.currentWindow = 1
         l.bind("<Enter>",self.on_label_entry)
         l.bind("<Leave>", self.on_label_exit)
         l.bind("<Button-1>",self.on_label_click)
@@ -251,6 +252,8 @@ class mainWindow(tkinter.Tk):
     def spawn_main_window(self,event):
         if self.initialState != "Normal":
             return
+        if self.currentWindow == 1:
+            return
         self.currentWindow = 1
         mainframe = self.nametowidget(self.winfo_children()[0])
         for child in mainframe.winfo_children()[1:]:
@@ -335,6 +338,8 @@ class mainWindow(tkinter.Tk):
 
     def spawn_report_window(self,event):
         if self.initialState != "Normal":
+            return
+        if self.currentWindow == 3:
             return
         self.currentWindow = 3
         mainframe = self.nametowidget(self.winfo_children()[0])
@@ -488,6 +493,8 @@ class mainWindow(tkinter.Tk):
         self.taskbar.displayBalloon(message)
 
     def spawn_settings_window(self,event):
+        if self.currentWindow == 2:
+            return
         self.currentWindow = 2
         mainframe = self.nametowidget(self.winfo_children()[0])
         for child in mainframe.winfo_children()[1:]:

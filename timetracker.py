@@ -155,9 +155,7 @@ def process():
     closingTimeFlag = False
     while running:
 
-        print("confirmedtask is", confirmedTask)
         if confirmedTask:
-            print("here")
             confirmedTask = False
             firstPromptTime = None
             confirmTime = datetime.datetime.now()
